@@ -2,12 +2,12 @@ CXX = g++
 CXXFLAGS = -O2 -g -Wall -std=c++0x
 
 # Strict compiler options
-CXXFLAGS += -Werror -Wformat-security -Wignored-qualifiers -Winit-self \
-		-Wswitch-default -Wfloat-equal -Wshadow -Wpointer-arith \
-		-Wtype-limits -Wempty-body -Wlogical-op \
-		-Wmissing-field-initializers -Wctor-dtor-privacy \
-		-Wnon-virtual-dtor -Wstrict-null-sentinel -Wold-style-cast \
-		-Woverloaded-virtual -Wsign-promo -Wextra -pedantic
+#CXXFLAGS += -Werror -Wformat-security -Wignored-qualifiers -Winit-self \
+#		-Wswitch-default -Wfloat-equal -Wshadow -Wpointer-arith \
+#		-Wtype-limits -Wempty-body -Wlogical-op \
+#		-Wmissing-field-initializers -Wctor-dtor-privacy \
+#		-Wnon-virtual-dtor -Wstrict-null-sentinel -Wold-style-cast \
+#		-Woverloaded-virtual -Wsign-promo -Wextra -pedantic
 
 # Directories with source code
 SRC_DIR = src
