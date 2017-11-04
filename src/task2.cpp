@@ -107,6 +107,37 @@ public:
     return sum;
     }
 };
+
+class LBPoperator
+{
+public: 
+    uint radius = 1; //size of kernel
+    uint &vert_radius = radius, &hor_radius = radius;
+    double operator() (const Matrix<double> &area) const  
+    {
+        uint size = 2 * radius + 1;
+        int tmp = 0;
+        assert(area.n_cols == area.n_rows);
+        assert(radius == (area.n_cols - 1) / 2);
+
+        double sum = 0.0, n = 0.0;
+        
+        for (uint i = 0; i < size; i++) {
+            for (uint j = 0; j < size; j++) {
+                if (i != radius && j != radius) {
+                    if (area(i, j) >= area(radius, radius))
+                        tmp = 1;
+                    else
+                        tmp = 0;
+                    sum += tmp * pow(2, n);
+                    n++;
+                }
+            }
+        }
+        return sum;
+    }
+};
+
 Matrix<double> custom(Matrix<double> src_image, Matrix<double> kernel)
 {
     Matrix<double> fin = src_image.unary_map(Convolution{kernel});
@@ -182,55 +213,9 @@ vector<double> histogram(Matrix<double> module, Matrix<double> direction)
     return this_hist;
 }
 
-vector<double> LBP(Matrix<double> img)
+Matrix<double> increase(Matrix<double> src, uint n, uint m)
 {
-    double norm = 0.0;
-    for (uint i=0; i<hist.size(); i++){
-        norm += pow(hist[i], 2);
-    }
-    norm = sqrt(norm);
-    for (uint i=0; i<hist.size(); i++){
-      //  cout << hist[i] << " ";
-        if (norm == 0) norm = 1;
-        hist[i] /= norm;
-      //  cout << hist[i] << endl;
-    }
-  //  cout << "normalize is ok" << endl;
-    return hist;
-}
-
-/*
-Matrix<double> origin(BMP &img)
-{
-    Matrix<std::tuple<uint, uint, uint>> imgMatrix(static_cast<uint>(img.TellHeight()),
-                                                   static_cast<uint>(img.TellWidth()));
-    for (uint i = 0; i < imgMatrix.n_rows; ++i) {
-        for (uint j = 0; j < imgMatrix.n_cols; ++j) {
-            RGBApixel *p = img(j, i);
-            imgMatrix(i, j) = std::make_tuple(p->Red, p->Green, p->Blue);
-        }
-    }
-    return imgMatrix;
-}*/
-
-Matrix<double> make_img(BMP& bmp){
-    Matrix<double> res(bmp.TellHeight(), bmp.TellWidth());
-    for (uint i = 0; i < res.n_cols; i++) {
-        for (uint j = 0; j < res.n_rows; j++) {
-            RGBApixel *pixel = bmp(i,j);
-            res(j,i) =  pixel->Red+pixel->Green+pixel->Blue;
-        }
-    }
-//    cout << "grayscale is ok" << endl;
-    return res;
-}
-
-
-
-template <typename T>
-Matrix<T> increase(Matrix<T> src, uint n, uint m)
-{
-    Matrix<T> res(n, m);
+    Matrix<double> res(n, m);
     for (uint i = 0; i < n; i++) {
         for (uint j = 0; j < m; j++) {
             if (i < src.n_rows && j < src.n_cols) {
@@ -243,8 +228,92 @@ Matrix<T> increase(Matrix<T> src, uint n, uint m)
     }
     return res;
 }
+///// 1 dop
+vector<double> LBPcount(Matrix<double> img)
+{
+    vector<double> LBP(256);
+    Matrix<double> lbp_val = img.unary_map(LBPoperator());
 
-vector<float> hog(BMP& bmp){
+    for (uint i = 0; i < lbp_val.n_rows; i++) {
+        for (uint j = 0; j < lbp_val.n_cols; j++) {
+            LBP[lbp_val(i,j)]++;
+        }
+    }
+    return LBP;
+}
+
+Matrix<std::tuple<uint, uint, uint>> make_img(BMP &img)
+{
+    Matrix<std::tuple<uint, uint, uint>> imgMatrix(static_cast<uint>(img.TellHeight()),
+                                                   static_cast<uint>(img.TellWidth()));
+    for (uint i = 0; i < imgMatrix.n_rows; ++i) {
+        for (uint j = 0; j < imgMatrix.n_cols; ++j) {
+            RGBApixel *p = img(j, i);
+            imgMatrix(i, j) = std::make_tuple(p->Red, p->Green, p->Blue);
+        }
+    }
+    return imgMatrix;
+}
+
+vector<double> Color(BMP &bmp){
+    uint sum_r = 0;
+    uint sum_g = 0;
+    uint sum_b = 0;
+    uint r, g, b;    
+    uint height = bmp.TellHeight();
+    uint width = bmp.TellWidth();
+
+    if (height % 8 != 0)
+    height = (height / 8 + 1) * 8;
+    if (width % 8 != 0)
+    width = (width / 8 + 1) * 8;
+
+    Matrix<std::tuple<uint, uint, uint>> img(height, width); 
+
+    for (uint i = 0; i < height; i++) {
+        for (uint j = 0; j < width; j++) {
+            if (i < static_cast<uint>(bmp.TellHeight()) && j < static_cast<uint>(bmp.TellWidth())) {
+                RGBApixel *p = bmp(j, i);
+                img(i, j) = std::make_tuple(p->Red, p->Green, p->Blue);
+               
+            }
+            else {
+                img(i, j) = std::make_tuple(255, 255, 255);
+            }
+        }
+    }
+
+    uint cage_height = height / 8;
+    uint cage_width = width / 8;
+    vector<double> color_fin = {0};
+    vector<double> color(3, 0.0);
+    Matrix<std::tuple<uint, uint, uint>> sub_img;
+    for (uint i = 0; i <= height - cage_height; i+=cage_height){
+        for (uint j = 0; j <= width - cage_width; j+=cage_width){
+            sub_img = img.submatrix(i, j, cage_height, cage_width);
+            for (uint y = 0; y < cage_height; y++){
+                for (uint x = 0; x < cage_width; x++){
+                    std::tie(r, g, b) = sub_img(y, x);
+                    sum_r += r;
+                    sum_g += g;
+                    sum_b += b;
+                }
+            }
+            color[0] = (sum_r / (cage_width*cage_height))/255.0;
+            color[1] = (sum_g / (cage_width*cage_height))/255.0;
+            color[2] = (sum_b / (cage_width*cage_height))/255.0;
+            color_fin.insert(color_fin.end(), color.begin(), color.end());
+            sum_r = 0; sum_g = 0; sum_b = 0;
+        }
+    }
+    return color_fin;
+}
+
+void ExtractFeatures(const TDataSet& data_set, TFeatures* features) {
+    for (size_t image_idx = 0; image_idx < data_set.size(); ++image_idx) {
+
+        auto &bmp = *(data_set[image_idx].first);
+
     uint n = bmp.TellHeight();
     uint m = bmp.TellWidth();
     if (n % 8 != 0)
@@ -254,10 +323,9 @@ vector<float> hog(BMP& bmp){
 
     uint cage_height = n / 8;
     uint cage_width = m / 8;
-    vector<float> descriptor;
-    vector<double> cage_histogram, normal;
-    Matrix<double> res(n, m), x_sob(n, m), y_sob(n, m), direction(n, m), module(n, m), sublbp, submod, subdir;
-    Matrix<double> lbp(n,m);
+
+    vector<float> hog_desc, lbp_desc, fin, color;
+    Matrix<double> res(n, m), x_sob(n, m), y_sob(n, m), direction(n, m), module(n, m);
 
     //1. apply grayscale
 
@@ -278,42 +346,36 @@ vector<float> hog(BMP& bmp){
     }
 
     //4. calculate histogram
-    
-    lbp = increase(make_img(bmp), n, m);
+    Matrix<double> submod, subdir, sublbp;
+    vector<double> cage_histogram, cage_norm, lbp_vect, lbp_norm;
 
     for (uint i = 0; i <= n - cage_height; i+=cage_height){
         for (uint j = 0; j <= m - cage_width; j+=cage_width){
 
             submod = module.submatrix(i, j, cage_height, cage_width);
             subdir = direction.submatrix(i, j, cage_height, cage_width);
-
-            sublbp = lbp.submatrix(i, j, cage_height, cage_width);
+            sublbp = res.submatrix(i, j, cage_height, cage_width);
             
             cage_histogram = histogram(submod, subdir);
-            normal = normalize(cage_histogram);
+            cage_norm = normalize(cage_histogram);
+            lbp_vect = LBPcount(sublbp);
+            lbp_norm = normalize(lbp_vect);
 
-            descriptor.insert(descriptor.end(), normal.begin(), normal.end());
+            hog_desc.insert(hog_desc.end(), cage_norm.begin(), cage_norm.end());
+            lbp_desc.insert(lbp_desc.end(), lbp_norm.begin(), lbp_norm.end());
         }
     }
-    return descriptor;
+    fin.insert(fin.end(), hog_desc.begin(), hog_desc.end());
+    fin.insert(fin.end(), lbp_desc.begin(), lbp_desc.end());
+    
+    vector<double> color_;
+    color_ = Color(bmp);
+    fin.insert(fin.end(), color_.begin(), color_.end());
+
+    features->push_back(make_pair(fin, data_set[image_idx].second));
+    }
 }
 
-void ExtractFeatures(const TDataSet& data_set, TFeatures* features) {
-    for (size_t image_idx = 0; image_idx < data_set.size(); ++image_idx) {
-        
-        auto &bmp = *(data_set[image_idx].first);
-        vector<float> descriptor = hog(bmp);
-        features->push_back(make_pair(descriptor, data_set[image_idx].second));
-        }
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////end of code////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Clear dataset structure
 void ClearDataset(TDataSet* data_set) {
@@ -347,7 +409,7 @@ void TrainClassifier(const string& data_file, const string& model_file) {
 
         // PLACE YOUR CODE HERE
         // You can change parameters of classifier here
-    params.C = 0.5;
+    params.C = 0.05;
     TClassifier classifier(params);
         // Train classifier
     classifier.Train(features, &model);
